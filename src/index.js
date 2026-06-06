@@ -68,6 +68,13 @@ discord.on("messageCreate", async (message) => {
     const response = await openai.responses.create({
       model: OPENAI_MODEL,
       instructions: BOT_SYSTEM_PROMPT,
+      tools: [
+        {
+          type: "web_search",
+          search_context_size: "medium",
+        },
+      ],
+      tool_choice: "auto",
       input: [
         {
           role: "user",
