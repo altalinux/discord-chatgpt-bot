@@ -55,6 +55,8 @@ npm --version
 git --version
 ```
 
+If `node --version` is lower than `v20`, upgrade Node.js before continuing.
+
 2. Clone the repository.
 
 ```bash
@@ -143,3 +145,26 @@ In DMs, send a message without mentioning it.
 This bot uses the OpenAI Responses API through the official OpenAI JavaScript SDK.
 
 On a VM, keep `.env` out of git and restrict its permissions because it contains secret tokens.
+
+## Troubleshooting
+
+If `npm start` fails with `SyntaxError: Unexpected token '?'`, the VM is running an old Node.js version. Check it with:
+
+```bash
+node --version
+```
+
+Install Node.js 20 or newer, reinstall dependencies, and restart the bot:
+
+```bash
+cd /opt/discord-chatgpt-bot
+npm install
+npm start
+```
+
+If the bot is managed by `systemd`, restart the service after upgrading Node.js:
+
+```bash
+sudo systemctl restart discord-chatgpt-bot
+journalctl -u discord-chatgpt-bot -f
+```
