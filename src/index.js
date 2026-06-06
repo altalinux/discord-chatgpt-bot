@@ -8,6 +8,7 @@ const {
   OPENAI_MODEL = "gpt-5.2",
   BOT_SYSTEM_PROMPT = "You are a helpful assistant chatting in Discord. Keep replies friendly and concise.",
   ALLOWED_CHANNEL_IDS = "",
+  CONVERSATION_TIMEOUT_MINUTES = "60",
 } = process.env;
 
 if (!DISCORD_TOKEN) {
@@ -38,6 +39,8 @@ const discord = new Client({
 
 const conversations = new Map();
 const MAX_DISCORD_MESSAGE_LENGTH = 2000;
+const RESET_COMMANDS = new Set(["reset", "リセット", "忘れて"]);
+const conversationTimeoutMs = parseConversationTimeout(CONVERSATION_TIMEOUT_MINUTES) * 60 * 1000;
 
 discord.once("ready", () => {
   console.log(`Logged in as ${discord.user.tag}`);
@@ -60,7 +63,20 @@ discord.on("messageCreate", async (message) => {
   }
 
   const conversationKey = `${message.guildId ?? "dm"}:${message.channelId}:${message.author.id}`;
-  const previousResponseId = conversations.get(conversationKey);
+
+  if (isResetCommand(prompt)) {
+    conversations.delete(conversationKey);
+    await message.reply("Conversation history reset.");
+    return;
+  }
+
+  const conversation = conversations.get(conversationKey);
+  const previousResponseId =
+    conversation && !isConversationExpired(conversation) ? conversation.responseId : undefined;
+
+  if (conversation && !previousResponseId) {
+    conversations.delete(conversationKey);
+  }
 
   try {
     await message.channel.sendTyping();
@@ -89,7 +105,10 @@ discord.on("messageCreate", async (message) => {
       previous_response_id: previousResponseId,
     });
 
-    conversations.set(conversationKey, response.id);
+    conversations.set(conversationKey, {
+      responseId: response.id,
+      lastUsedAt: Date.now(),
+    });
 
     const reply = response.output_text?.trim() || "Sorry, I could not generate a reply.";
     for (const chunk of splitForDiscord(reply)) {
@@ -105,6 +124,24 @@ discord.login(DISCORD_TOKEN);
 
 function cleanPrompt(content, botUserId) {
   return content.replaceAll(`<@${botUserId}>`, "").replaceAll(`<@!${botUserId}>`, "").trim();
+}
+
+function isResetCommand(prompt) {
+  return RESET_COMMANDS.has(prompt.toLowerCase());
+}
+
+function isConversationExpired(conversation) {
+  return Date.now() - conversation.lastUsedAt > conversationTimeoutMs;
+}
+
+function parseConversationTimeout(value) {
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error("CONVERSATION_TIMEOUT_MINUTES must be a positive number.");
+  }
+
+  return parsed;
 }
 
 function splitForDiscord(text) {

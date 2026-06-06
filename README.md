@@ -139,6 +139,16 @@ In DMs, send a message without mentioning it.
 | `OPENAI_MODEL` | No | OpenAI model. Default: `gpt-5.2` |
 | `BOT_SYSTEM_PROMPT` | No | System instructions for the bot |
 | `ALLOWED_CHANNEL_IDS` | No | Comma-separated Discord channel IDs. Leave empty to allow all channels |
+| `CONVERSATION_TIMEOUT_MINUTES` | No | Minutes before a user's conversation context resets. Default: `60` |
+
+## Conversation Memory
+
+The bot keeps conversation context in memory per server/channel/user while the process is running.
+
+- Context resets automatically after `CONVERSATION_TIMEOUT_MINUTES` minutes of inactivity.
+- Context also resets when the bot process restarts.
+- Mention the bot with `reset`, `リセット`, or `忘れて` to reset your own context in that channel.
+- Reset commands do not affect other users or other channels.
 
 ## Notes
 
