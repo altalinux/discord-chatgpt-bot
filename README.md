@@ -140,6 +140,19 @@ In DMs, send a message without mentioning it.
 | `BOT_SYSTEM_PROMPT` | No | System instructions for the bot |
 | `ALLOWED_CHANNEL_IDS` | No | Comma-separated Discord channel IDs. Leave empty to allow all channels |
 | `CONVERSATION_TIMEOUT_MINUTES` | No | Minutes before a user's conversation context resets. Default: `60` |
+| `WEB_SEARCH_ENABLED` | No | Enable web search for messages that look like they need current information. Default: `true` |
+
+## Web Search
+
+The bot only sends the OpenAI `web_search` tool when a message appears to need current information.
+
+Web search is enabled when `WEB_SEARCH_ENABLED` is not `false`, `0`, `off`, or `no`, and the prompt contains one of these keywords:
+
+```text
+最新 ニュース 調べて 検索 現在 今日 価格 天気 公式
+```
+
+Normal messages are sent without `tools` or `tool_choice`.
 
 ## Conversation Memory
 

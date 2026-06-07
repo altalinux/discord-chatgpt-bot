@@ -9,6 +9,7 @@ const {
   BOT_SYSTEM_PROMPT = "You are a helpful assistant chatting in Discord. Keep replies friendly and concise.",
   ALLOWED_CHANNEL_IDS = "",
   CONVERSATION_TIMEOUT_MINUTES = "60",
+  WEB_SEARCH_ENABLED = "true",
 } = process.env;
 
 if (!DISCORD_TOKEN) {
@@ -40,7 +41,9 @@ const discord = new Client({
 const conversations = new Map();
 const MAX_DISCORD_MESSAGE_LENGTH = 2000;
 const RESET_COMMANDS = new Set(["reset", "リセット", "忘れて"]);
+const WEB_SEARCH_KEYWORDS = ["最新", "ニュース", "調べて", "検索", "現在", "今日", "価格", "天気", "公式"];
 const conversationTimeoutMs = parseConversationTimeout(CONVERSATION_TIMEOUT_MINUTES) * 60 * 1000;
+const webSearchEnabled = parseBoolean(WEB_SEARCH_ENABLED);
 
 discord.once("ready", () => {
   console.log(`Logged in as ${discord.user.tag}`);
@@ -81,16 +84,9 @@ discord.on("messageCreate", async (message) => {
   try {
     await message.channel.sendTyping();
 
-    const response = await openai.responses.create({
+    const request = {
       model: OPENAI_MODEL,
       instructions: BOT_SYSTEM_PROMPT,
-      tools: [
-        {
-          type: "web_search",
-          search_context_size: "medium",
-        },
-      ],
-      tool_choice: "auto",
       input: [
         {
           role: "user",
@@ -103,7 +99,19 @@ discord.on("messageCreate", async (message) => {
         },
       ],
       previous_response_id: previousResponseId,
-    });
+    };
+
+    if (shouldUseWebSearch(prompt)) {
+      request.tools = [
+        {
+          type: "web_search",
+          search_context_size: "medium",
+        },
+      ];
+      request.tool_choice = "auto";
+    }
+
+    const response = await openai.responses.create(request);
 
     conversations.set(conversationKey, {
       responseId: response.id,
@@ -130,6 +138,10 @@ function isResetCommand(prompt) {
   return RESET_COMMANDS.has(prompt.toLowerCase());
 }
 
+function shouldUseWebSearch(prompt) {
+  return webSearchEnabled && WEB_SEARCH_KEYWORDS.some((keyword) => prompt.includes(keyword));
+}
+
 function isConversationExpired(conversation) {
   return Date.now() - conversation.lastUsedAt > conversationTimeoutMs;
 }
@@ -142,6 +154,10 @@ function parseConversationTimeout(value) {
   }
 
   return parsed;
+}
+
+function parseBoolean(value) {
+  return !["false", "0", "off", "no"].includes(value.trim().toLowerCase());
 }
 
 function splitForDiscord(text) {
