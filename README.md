@@ -130,6 +130,14 @@ Mention the bot in a server:
 
 In DMs, send a message without mentioning it.
 
+You can attach images with a mention or in a DM and ask questions about them:
+
+```text
+@YourBot what is shown in this image?
+```
+
+If you send only an image in a DM or with a mention, the bot asks OpenAI to describe the image.
+
 ## Environment Variables
 
 | Variable | Required | Description |
@@ -166,6 +174,10 @@ The bot keeps conversation context in memory per server/channel/user while the p
 ## Notes
 
 This bot uses the OpenAI Responses API through the official OpenAI JavaScript SDK.
+
+Image input supports JPEG, PNG, WebP, and GIF attachments. Each message can include up to 4 images, and each image must be 20 MB or smaller.
+
+Image input consumes OpenAI API usage. Non-image attachments such as PDFs are ignored when text is present.
 
 On a VM, keep `.env` out of git and restrict its permissions because it contains secret tokens.
 

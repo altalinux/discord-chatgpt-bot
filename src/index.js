@@ -40,7 +40,10 @@ const discord = new Client({
 
 const conversations = new Map();
 const MAX_DISCORD_MESSAGE_LENGTH = 2000;
+const MAX_IMAGE_ATTACHMENTS = 4;
+const MAX_IMAGE_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 const RESET_COMMANDS = new Set(["reset", "リセット", "忘れて"]);
+const SUPPORTED_IMAGE_CONTENT_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const WEB_SEARCH_KEYWORDS = ["最新", "ニュース", "調べて", "検索", "現在", "今日", "価格", "天気", "公式"];
 const conversationTimeoutMs = parseConversationTimeout(CONVERSATION_TIMEOUT_MINUTES) * 60 * 1000;
 const webSearchEnabled = parseBoolean(WEB_SEARCH_ENABLED);
@@ -59,17 +62,24 @@ discord.on("messageCreate", async (message) => {
   if (!isDirectMessage && !wasMentioned) return;
 
   const prompt = cleanPrompt(message.content, discord.user.id);
-
-  if (!prompt) {
-    await message.reply("What would you like to talk about?");
-    return;
-  }
-
   const conversationKey = `${message.guildId ?? "dm"}:${message.channelId}:${message.author.id}`;
 
   if (isResetCommand(prompt)) {
     conversations.delete(conversationKey);
     await message.reply("Conversation history reset.");
+    return;
+  }
+
+  const imageAttachments = getImageAttachments(message);
+  const imageValidationError = validateImageAttachments(imageAttachments);
+
+  if (imageValidationError) {
+    await message.reply(imageValidationError);
+    return;
+  }
+
+  if (!prompt && imageAttachments.length === 0) {
+    await message.reply("What would you like to talk about?");
     return;
   }
 
@@ -90,12 +100,7 @@ discord.on("messageCreate", async (message) => {
       input: [
         {
           role: "user",
-          content: [
-            {
-              type: "input_text",
-              text: `${message.author.username}: ${prompt}`,
-            },
-          ],
+          content: buildUserContent(message.author.username, prompt, imageAttachments),
         },
       ],
       previous_response_id: previousResponseId,
@@ -140,6 +145,58 @@ function isResetCommand(prompt) {
 
 function shouldUseWebSearch(prompt) {
   return webSearchEnabled && WEB_SEARCH_KEYWORDS.some((keyword) => prompt.includes(keyword));
+}
+
+function getImageAttachments(message) {
+  return [...message.attachments.values()].filter((attachment) => isImageAttachment(attachment));
+}
+
+function isImageAttachment(attachment) {
+  return attachment.contentType?.startsWith("image/") || isSupportedImageFilename(attachment.name);
+}
+
+function isSupportedImageFilename(filename = "") {
+  return /\.(jpe?g|png|webp|gif)$/i.test(filename);
+}
+
+function validateImageAttachments(imageAttachments) {
+  if (imageAttachments.length > MAX_IMAGE_ATTACHMENTS) {
+    return `Please attach up to ${MAX_IMAGE_ATTACHMENTS} images per message.`;
+  }
+
+  const unsupportedAttachment = imageAttachments.find(
+    (attachment) => !SUPPORTED_IMAGE_CONTENT_TYPES.has(attachment.contentType),
+  );
+
+  if (unsupportedAttachment) {
+    return "Unsupported image format. Please attach JPEG, PNG, WebP, or GIF images.";
+  }
+
+  const oversizedAttachment = imageAttachments.find(
+    (attachment) => attachment.size > MAX_IMAGE_ATTACHMENT_BYTES,
+  );
+
+  if (oversizedAttachment) {
+    return "Each image must be 20 MB or smaller.";
+  }
+
+  return null;
+}
+
+function buildUserContent(username, prompt, imageAttachments) {
+  const text = prompt || "Please describe the attached image.";
+
+  return [
+    {
+      type: "input_text",
+      text: `${username}: ${text}`,
+    },
+    ...imageAttachments.map((attachment) => ({
+      type: "input_image",
+      image_url: attachment.url,
+      detail: "auto",
+    })),
+  ];
 }
 
 function isConversationExpired(conversation) {
