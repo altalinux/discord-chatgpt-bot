@@ -1,11 +1,12 @@
 import "dotenv/config";
 import { Client, GatewayIntentBits, Partials } from "discord.js";
 import OpenAI from "openai";
+import { ChannelConversationManager, getConversationKey } from "./conversation-context.js";
 
 const {
   DISCORD_TOKEN,
   OPENAI_API_KEY,
-  OPENAI_MODEL = "gpt-5.2",
+  OPENAI_MODEL = "gpt-5.6-terra",
   BOT_SYSTEM_PROMPT = "You are a helpful assistant chatting in Discord. Keep replies friendly and concise.",
   ALLOWED_CHANNEL_IDS = "",
   CONVERSATION_TIMEOUT_MINUTES = "60",
@@ -38,7 +39,6 @@ const discord = new Client({
   partials: [Partials.Channel],
 });
 
-const conversations = new Map();
 const MAX_DISCORD_MESSAGE_LENGTH = 2000;
 const MAX_IMAGE_ATTACHMENTS = 4;
 const MAX_IMAGE_ATTACHMENT_BYTES = 20 * 1024 * 1024;
@@ -47,6 +47,7 @@ const SUPPORTED_IMAGE_CONTENT_TYPES = new Set(["image/jpeg", "image/png", "image
 const WEB_SEARCH_KEYWORDS = ["最新", "ニュース", "調べて", "検索", "現在", "今日", "価格", "天気", "公式"];
 const conversationTimeoutMs = parseConversationTimeout(CONVERSATION_TIMEOUT_MINUTES) * 60 * 1000;
 const webSearchEnabled = parseBoolean(WEB_SEARCH_ENABLED);
+const conversationManager = new ChannelConversationManager({ timeoutMs: conversationTimeoutMs });
 
 discord.once("ready", () => {
   console.log(`Logged in as ${discord.user.tag}`);
@@ -62,11 +63,13 @@ discord.on("messageCreate", async (message) => {
   if (!isDirectMessage && !wasMentioned) return;
 
   const prompt = cleanPrompt(message.content, discord.user.id);
-  const conversationKey = `${message.guildId ?? "dm"}:${message.channelId}:${message.author.id}`;
+  const conversationKey = getConversationKey(message);
 
   if (isResetCommand(prompt)) {
-    conversations.delete(conversationKey);
-    await message.reply("Conversation history reset.");
+    await conversationManager.runInOrder(conversationKey, async () => {
+      conversationManager.reset(conversationKey);
+      await message.reply("Conversation history for this channel has been reset.");
+    });
     return;
   }
 
@@ -83,54 +86,42 @@ discord.on("messageCreate", async (message) => {
     return;
   }
 
-  const conversation = conversations.get(conversationKey);
-  const previousResponseId =
-    conversation && !isConversationExpired(conversation) ? conversation.responseId : undefined;
+  await conversationManager.runInOrder(conversationKey, async () => {
+    try {
+      await message.channel.sendTyping();
+      const request = {
+        model: OPENAI_MODEL,
+        instructions: BOT_SYSTEM_PROMPT,
+        input: [
+          {
+            role: "user",
+            content: buildUserContent(message.author.username, prompt, imageAttachments),
+          },
+        ],
+        previous_response_id: conversationManager.getPreviousResponseId(conversationKey),
+      };
 
-  if (conversation && !previousResponseId) {
-    conversations.delete(conversationKey);
-  }
+      if (shouldUseWebSearch(prompt)) {
+        request.tools = [
+          {
+            type: "web_search",
+            search_context_size: "medium",
+          },
+        ];
+        request.tool_choice = "auto";
+      }
 
-  try {
-    await message.channel.sendTyping();
-
-    const request = {
-      model: OPENAI_MODEL,
-      instructions: BOT_SYSTEM_PROMPT,
-      input: [
-        {
-          role: "user",
-          content: buildUserContent(message.author.username, prompt, imageAttachments),
-        },
-      ],
-      previous_response_id: previousResponseId,
-    };
-
-    if (shouldUseWebSearch(prompt)) {
-      request.tools = [
-        {
-          type: "web_search",
-          search_context_size: "medium",
-        },
-      ];
-      request.tool_choice = "auto";
+      const response = await openai.responses.create(request);
+      conversationManager.setResponseId(conversationKey, response.id);
+      const reply = response.output_text?.trim() || "Sorry, I could not generate a reply.";
+      for (const chunk of splitForDiscord(reply)) {
+        await message.reply(chunk);
+      }
+    } catch (error) {
+      console.error(error);
+      await message.reply("An error occurred. Please check the bot logs.");
     }
-
-    const response = await openai.responses.create(request);
-
-    conversations.set(conversationKey, {
-      responseId: response.id,
-      lastUsedAt: Date.now(),
-    });
-
-    const reply = response.output_text?.trim() || "Sorry, I could not generate a reply.";
-    for (const chunk of splitForDiscord(reply)) {
-      await message.reply(chunk);
-    }
-  } catch (error) {
-    console.error(error);
-    await message.reply("An error occurred. Please check the bot logs.");
-  }
+  });
 });
 
 discord.login(DISCORD_TOKEN);
@@ -197,10 +188,6 @@ function buildUserContent(username, prompt, imageAttachments) {
       detail: "auto",
     })),
   ];
-}
-
-function isConversationExpired(conversation) {
-  return Date.now() - conversation.lastUsedAt > conversationTimeoutMs;
 }
 
 function parseConversationTimeout(value) {

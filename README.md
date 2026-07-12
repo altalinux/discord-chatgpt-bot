@@ -144,10 +144,10 @@ If you send only an image in a DM or with a mention, the bot asks OpenAI to desc
 | --- | --- | --- |
 | `DISCORD_TOKEN` | Yes | Discord bot token |
 | `OPENAI_API_KEY` | Yes | OpenAI API key |
-| `OPENAI_MODEL` | No | OpenAI model. Default: `gpt-5.2` |
+| `OPENAI_MODEL` | No | OpenAI model. Default: `gpt-5.6-terra` |
 | `BOT_SYSTEM_PROMPT` | No | System instructions for the bot |
 | `ALLOWED_CHANNEL_IDS` | No | Comma-separated Discord channel IDs. Leave empty to allow all channels |
-| `CONVERSATION_TIMEOUT_MINUTES` | No | Minutes before a user's conversation context resets. Default: `60` |
+| `CONVERSATION_TIMEOUT_MINUTES` | No | Minutes before a channel's shared conversation context resets. Default: `60` |
 | `WEB_SEARCH_ENABLED` | No | Enable web search for messages that look like they need current information. Default: `true` |
 
 ## Web Search
@@ -164,12 +164,12 @@ Normal messages are sent without `tools` or `tool_choice`.
 
 ## Conversation Memory
 
-The bot keeps conversation context in memory per server/channel/user while the process is running.
+The bot keeps one shared conversation context in memory per channel while the process is running. In a server channel, messages from every user who mentions the bot and the bot's replies become part of the same context. Messages that do not mention the bot are not added. DMs and Discord threads each have their own context.
 
 - Context resets automatically after `CONVERSATION_TIMEOUT_MINUTES` minutes of inactivity.
 - Context also resets when the bot process restarts.
-- Mention the bot with `reset`, `リセット`, or `忘れて` to reset your own context in that channel.
-- Reset commands do not affect other users or other channels.
+- Mention the bot with `reset`, `リセット`, or `忘れて` to reset the shared context for that channel.
+- Any user can reset the channel's shared context. Reset commands do not affect other channels.
 
 ## Notes
 
