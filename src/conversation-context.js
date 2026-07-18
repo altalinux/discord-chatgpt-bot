@@ -13,18 +13,18 @@ export class ChannelConversationManager {
     this.queues = new Map();
   }
 
-  getPreviousResponseId(conversationKey) {
+  getContinuationId(conversationKey) {
     const conversation = this.conversations.get(conversationKey);
     if (!conversation) return undefined;
     if (this.now() - conversation.lastUsedAt > this.timeoutMs) {
       this.conversations.delete(conversationKey);
       return undefined;
     }
-    return conversation.responseId;
+    return conversation.continuationId;
   }
 
-  setResponseId(conversationKey, responseId) {
-    this.conversations.set(conversationKey, { responseId, lastUsedAt: this.now() });
+  setContinuationId(conversationKey, continuationId) {
+    this.conversations.set(conversationKey, { continuationId, lastUsedAt: this.now() });
   }
 
   reset(conversationKey) {

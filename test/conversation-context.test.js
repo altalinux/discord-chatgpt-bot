@@ -17,13 +17,13 @@ test("different channels, DMs, and threads have separate conversation keys", () 
 test("conversation state expires and can be reset for the whole channel", () => {
   let now = 1_000;
   const manager = new ChannelConversationManager({ timeoutMs: 60_000, now: () => now });
-  manager.setResponseId("guild-1:channel-1", "response-1");
-  assert.equal(manager.getPreviousResponseId("guild-1:channel-1"), "response-1");
+  manager.setContinuationId("guild-1:channel-1", "response-1");
+  assert.equal(manager.getContinuationId("guild-1:channel-1"), "response-1");
   manager.reset("guild-1:channel-1");
-  assert.equal(manager.getPreviousResponseId("guild-1:channel-1"), undefined);
-  manager.setResponseId("guild-1:channel-1", "response-2");
+  assert.equal(manager.getContinuationId("guild-1:channel-1"), undefined);
+  manager.setContinuationId("guild-1:channel-1", "response-2");
   now += 60_001;
-  assert.equal(manager.getPreviousResponseId("guild-1:channel-1"), undefined);
+  assert.equal(manager.getContinuationId("guild-1:channel-1"), undefined);
 });
 
 test("tasks are serialized per channel while different channels run independently", async () => {
