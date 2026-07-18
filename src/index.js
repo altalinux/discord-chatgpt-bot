@@ -2,11 +2,13 @@ import "dotenv/config";
 import { Client, GatewayIntentBits, Partials } from "discord.js";
 import OpenAI from "openai";
 import { ChannelConversationManager, getConversationKey } from "./conversation-context.js";
+import { parseReasoningEffort } from "./reasoning-effort.js";
 
 const {
   DISCORD_TOKEN,
   OPENAI_API_KEY,
   OPENAI_MODEL = "gpt-5.6-terra",
+  OPENAI_REASONING_EFFORT,
   BOT_SYSTEM_PROMPT = "You are a helpful assistant chatting in Discord. Keep replies friendly and concise.",
   ALLOWED_CHANNEL_IDS = "",
   CONVERSATION_TIMEOUT_MINUTES = "60",
@@ -47,6 +49,7 @@ const SUPPORTED_IMAGE_CONTENT_TYPES = new Set(["image/jpeg", "image/png", "image
 const WEB_SEARCH_KEYWORDS = ["最新", "ニュース", "調べて", "検索", "現在", "今日", "価格", "天気", "公式"];
 const conversationTimeoutMs = parseConversationTimeout(CONVERSATION_TIMEOUT_MINUTES) * 60 * 1000;
 const webSearchEnabled = parseBoolean(WEB_SEARCH_ENABLED);
+const reasoningEffort = parseReasoningEffort(OPENAI_REASONING_EFFORT);
 const conversationManager = new ChannelConversationManager({ timeoutMs: conversationTimeoutMs });
 
 discord.once("ready", () => {
@@ -99,6 +102,7 @@ discord.on("messageCreate", async (message) => {
           },
         ],
         previous_response_id: conversationManager.getPreviousResponseId(conversationKey),
+        ...(reasoningEffort && { reasoning: { effort: reasoningEffort } }),
       };
 
       if (shouldUseWebSearch(prompt)) {

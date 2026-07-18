@@ -145,10 +145,21 @@ If you send only an image in a DM or with a mention, the bot asks OpenAI to desc
 | `DISCORD_TOKEN` | Yes | Discord bot token |
 | `OPENAI_API_KEY` | Yes | OpenAI API key |
 | `OPENAI_MODEL` | No | OpenAI model. Default: `gpt-5.6-terra` |
+| `OPENAI_REASONING_EFFORT` | No | Reasoning effort: `none`, `low`, `medium`, `high`, `xhigh`, or `max`. Unset or empty uses the model default |
 | `BOT_SYSTEM_PROMPT` | No | System instructions for the bot |
 | `ALLOWED_CHANNEL_IDS` | No | Comma-separated Discord channel IDs. Leave empty to allow all channels |
 | `CONVERSATION_TIMEOUT_MINUTES` | No | Minutes before a channel's shared conversation context resets. Default: `60` |
 | `WEB_SEARCH_ENABLED` | No | Enable web search for messages that look like they need current information. Default: `true` |
+
+## Reasoning Effort
+
+Set `OPENAI_REASONING_EFFORT` to control the balance between response speed, cost, and reasoning quality. The example configuration uses `medium`:
+
+```env
+OPENAI_REASONING_EFFORT=medium
+```
+
+Use `none` for the lowest-latency baseline, or increase the value when a task benefits from more reasoning. Supported values for the default `gpt-5.6-terra` model are `none`, `low`, `medium`, `high`, `xhigh`, and `max`. If the variable is unset or empty, the bot omits `reasoning.effort` and uses the selected model's default. An unsupported value stops the bot at startup with a configuration error.
 
 ## Web Search
 
