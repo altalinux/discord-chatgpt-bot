@@ -2,7 +2,7 @@
 
 **English** | [日本語](README.ja.md)
 
-A minimal Discord bot that lets people chat with OpenAI or Gemini. Select the provider at startup with an environment variable. In servers, the bot replies only when mentioned. In DMs, it replies to normal messages.
+A minimal Discord bot that lets people chat with OpenAI, Gemini, or Sarashina. Select the provider at startup with an environment variable. In servers, the bot replies only when mentioned. In DMs, it replies to normal messages.
 
 ## Requirements
 
@@ -155,7 +155,7 @@ If you send only an image in a DM or with a mention, the bot asks the selected p
 | Variable | Required | Description |
 | --- | --- | --- |
 | `DISCORD_TOKEN` | Yes | Discord bot token |
-| `AI_PROVIDER` | No | `openai` or `gemini`. Default: `openai` |
+| `AI_PROVIDER` | No | `openai`, `gemini`, or `sarashina`. Default: `openai` |
 | `OPENAI_API_KEY` | For OpenAI | OpenAI API key |
 | `OPENAI_MODEL` | No | OpenAI model. Default: `gpt-5.6-terra` |
 | `OPENAI_REASONING_EFFORT` | No | Reasoning effort: `none`, `low`, `medium`, `high`, `xhigh`, or `max`. Unset or empty uses the model default |
@@ -247,3 +247,26 @@ If the bot is managed by `systemd`, restart the service after upgrading Node.js:
 sudo systemctl restart discord-chatgpt-bot
 journalctl -u discord-chatgpt-bot -f
 ```
+
+
+## Chat with Sarashina
+
+Create a key in the Sarashina console, set these values in `.env`, and restart:
+
+```dotenv
+AI_PROVIDER=sarashina
+SARASHINA_API_KEY=your_sarashina_api_key
+SARASHINA_MODEL=sarashina3-mini
+BOT_SYSTEM_PROMPT=You are Gumoppi. Chat warmly in Japanese.
+CONVERSATION_TIMEOUT_MINUTES=60
+```
+
+Sarashina uses Chat Completions with a 512-token output limit and temperature 0.7. It is instructed to normally answer in 1–3 Japanese sentences. Discord shows a typing indicator while generating; responses are not streamed.
+
+The last six successful exchanges are held in memory per channel/DM and sent with each request. History is saved after posting the answer and cleared on inactivity timeout, reset commands, or restart. OpenAI and Gemini retain their existing continuation-ID behavior.
+
+Images receive a message directing users to the new Gumoppi. Web search is disabled for Sarashina even when `WEB_SEARCH_ENABLED=true`; its instructions explicitly state that it cannot verify current information.
+
+A process-wide limiter allows six calls per rolling 60 seconds. On reaching the limit, the bot asks users to try again after the displayed wait time. An upstream 429 pauses calls for 60 seconds. There are no automatic retries, and requests time out after 60 seconds. Usage by other processes sharing the same account is not tracked by this local limiter.
+
+API reference: https://docs.sarashina.ai/api-reference/chat-completions

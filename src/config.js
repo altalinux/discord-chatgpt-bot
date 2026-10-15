@@ -1,19 +1,21 @@
 import { parseReasoningEffort } from "./reasoning-effort.js";
 import { parseThinkingLevel } from "./thinking-level.js";
 
-const SUPPORTED_AI_PROVIDERS = new Set(["openai", "gemini"]);
+const SUPPORTED_AI_PROVIDERS = new Set(["openai", "gemini", "sarashina"]);
 
 export function loadConfig(env = process.env) {
   const aiProvider = (env.AI_PROVIDER || "openai").trim().toLowerCase();
 
   if (!SUPPORTED_AI_PROVIDERS.has(aiProvider)) {
-    throw new Error("AI_PROVIDER must be either openai or gemini.");
+    throw new Error("AI_PROVIDER must be openai, gemini, or sarashina.");
   }
 
   requireValue(env.DISCORD_TOKEN, "DISCORD_TOKEN");
 
   if (aiProvider === "openai") {
     requireValue(env.OPENAI_API_KEY, "OPENAI_API_KEY");
+  } else if (aiProvider === "sarashina") {
+    requireValue(env.SARASHINA_API_KEY, "SARASHINA_API_KEY");
   } else {
     requireValue(env.GEMINI_API_KEY, "GEMINI_API_KEY");
   }
@@ -21,6 +23,8 @@ export function loadConfig(env = process.env) {
   return {
     discordToken: env.DISCORD_TOKEN,
     aiProvider,
+    sarashinaApiKey: env.SARASHINA_API_KEY,
+    sarashinaModel: env.SARASHINA_MODEL || "sarashina3-mini",
     openaiApiKey: env.OPENAI_API_KEY,
     openaiModel: env.OPENAI_MODEL || "gpt-5.6-terra",
     openaiReasoningEffort:

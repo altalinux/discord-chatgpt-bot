@@ -42,7 +42,7 @@ test("selects Gemini without requiring an OpenAI key", () => {
 test("rejects invalid provider, boolean, and selected-provider reasoning settings", () => {
   assert.throws(
     () => loadConfig({ ...baseEnv, AI_PROVIDER: "other", OPENAI_API_KEY: "key" }),
-    /AI_PROVIDER must be either/,
+    /AI_PROVIDER must be/,
   );
   assert.throws(() => parseBoolean("maybe", "FLAG"), /FLAG must be a boolean value/);
   assert.throws(
