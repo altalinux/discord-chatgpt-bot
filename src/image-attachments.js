@@ -10,6 +10,10 @@ function isImageAttachment(attachment) {
 }
 
 export function validateImageAttachments(imageAttachments, provider) {
+  if (provider.name === "sarashina" && imageAttachments.length > 0) {
+    return "画像は新ぐもっぴーに聞いてね。ここではテキストで話そう！";
+  }
+
   if (imageAttachments.length > MAX_IMAGE_ATTACHMENTS) {
     return `Please attach up to ${MAX_IMAGE_ATTACHMENTS} images per message.`;
   }

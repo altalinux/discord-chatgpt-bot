@@ -1,5 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import OpenAI from "openai";
+import { RequestLimiter } from "./request-limiter.js";
 
 const OPENAI_IMAGE_CONTENT_TYPES = new Set([
   "image/jpeg",
@@ -17,6 +18,9 @@ export class SearchLimitError extends Error {
 }
 
 export function createAiProvider(config) {
+  if (config.aiProvider === "sarashina") {
+    return new SarashinaProvider({ apiKey: config.sarashinaApiKey, model: config.sarashinaModel });
+  }
   if (config.aiProvider === "gemini") {
     return new GeminiProvider({
       apiKey: config.geminiApiKey,
@@ -187,4 +191,42 @@ function utf8ByteOffsetToStringIndex(text, byteOffset) {
   }
 
   return bytes === byteOffset ? stringIndex : undefined;
+}
+
+
+export class SarashinaProvider {
+  constructor({ apiKey, model, client, limiter = new RequestLimiter() }) {
+    this.name = "sarashina";
+    this.model = model;
+    this.supportedImageContentTypes = new Set();
+    this.limiter = limiter;
+    this.client = client || new OpenAI({
+      apiKey,
+      baseURL: "https://api.sarashina.ai/v1",
+      maxRetries: 0,
+      timeout: 60_000,
+    });
+  }
+
+  async generate({ systemPrompt, username, prompt, history = [] }) {
+    this.limiter.acquire();
+    try {
+      const response = await this.client.chat.completions.create({
+        model: this.model,
+        messages: [
+          { role: "system", content: `${systemPrompt}\n通常は日本語で1〜3文の短い返答にしてください。詳しく求められた場合は必要に応じて説明してください。ウェブ検索や画像の閲覧はできません。最新情報を確認したふりをせず、不明なことは不明と伝えてください。` },
+          ...history,
+          { role: "user", content: `${username}: ${prompt}` },
+        ],
+        max_completion_tokens: 512,
+        temperature: 0.7,
+      });
+      const text = response.choices?.[0]?.message?.content?.trim();
+      if (!text) throw new Error("Sarashina returned an empty answer.");
+      return { text };
+    } catch (error) {
+      if (error?.status === 429) this.limiter.block();
+      throw error;
+    }
+  }
 }

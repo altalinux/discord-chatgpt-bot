@@ -13,14 +13,30 @@ export class ChannelConversationManager {
     this.queues = new Map();
   }
 
-  getContinuationId(conversationKey) {
+  getConversation(conversationKey) {
     const conversation = this.conversations.get(conversationKey);
     if (!conversation) return undefined;
     if (this.now() - conversation.lastUsedAt > this.timeoutMs) {
       this.conversations.delete(conversationKey);
       return undefined;
     }
-    return conversation.continuationId;
+    return conversation;
+  }
+
+  getContinuationId(conversationKey) {
+    return this.getConversation(conversationKey)?.continuationId;
+  }
+
+  getHistory(conversationKey) {
+    return (this.getConversation(conversationKey)?.history ?? []).map((message) => ({ ...message }));
+  }
+
+  appendExchange(conversationKey, username, prompt, text) {
+    const history = [...this.getHistory(conversationKey),
+      { role: "user", content: `${username}: ${prompt}` },
+      { role: "assistant", content: text },
+    ].slice(-12);
+    this.conversations.set(conversationKey, { history, lastUsedAt: this.now() });
   }
 
   setContinuationId(conversationKey, continuationId) {

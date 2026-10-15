@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { RateLimitError } from "./request-limiter.js";
 import { Client, GatewayIntentBits, Partials } from "discord.js";
 import { createAiProvider, SearchLimitError } from "./ai-provider.js";
 import { loadConfig } from "./config.js";
@@ -92,14 +93,30 @@ discord.on("messageCreate", async (message) => {
         prompt,
         images: imageAttachments,
         continuationId: conversationManager.getContinuationId(conversationKey),
+        history: aiProvider.name === "sarashina" ? conversationManager.getHistory(conversationKey) : undefined,
         useWebSearch: searchDecision === "enabled",
       });
-      conversationManager.setContinuationId(conversationKey, response.continuationId);
+      if (aiProvider.name !== "sarashina") {
+        conversationManager.setContinuationId(conversationKey, response.continuationId);
+      }
       const reply = response.text || "Sorry, I could not generate a reply.";
       for (const chunk of splitForDiscord(reply)) {
         await message.reply(chunk);
       }
+      if (aiProvider.name === "sarashina") {
+        conversationManager.appendExchange(conversationKey, message.author.username, prompt, response.text);
+      }
     } catch (error) {
+      if (aiProvider.name === "sarashina") {
+        // Avoid logging SDK request headers or conversation content.
+        console.error("Sarashina request failed", { status: error?.status, name: error?.name });
+        await message.reply(error instanceof RateLimitError
+          ? error.message
+          : error?.status === 429
+            ? "今は少し混み合っているみたい。1分くらい待ってから、また話しかけてね。"
+            : "うまく返事できなかったよ。少し待って、もう一度話しかけてね。");
+        return;
+      }
       console.error(error);
       await message.reply(
         error instanceof SearchLimitError
