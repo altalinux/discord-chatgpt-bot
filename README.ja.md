@@ -249,17 +249,20 @@ Sarashina APIコンソールでキーを発行し、次を`.env`に設定して�
 ```dotenv
 AI_PROVIDER=sarashina
 SARASHINA_API_KEY=your_sarashina_api_key
-SARASHINA_MODEL=sarashina3-mini
+SARASHINA_MODEL=sarashina3.2-mini-thinking
+SARASHINA_REASONING_EFFORT=medium
 BOT_SYSTEM_PROMPT=あなたは「ぐもっぴー」です。親しみやすい日本語で会話してください。
 CONVERSATION_TIMEOUT_MINUTES=60
 ```
 
-SarashinaはChat Completions APIを使用します。通常1〜3文で回答する指示を付け、出力上限512トークン、temperature 0.7で呼び出します。生成中はDiscordの入力中表示を出し、完成した回答を投稿します。
+SarashinaはChat Completions APIを使用します。通常1〜3文で回答する指示を付け、既定モデルはSarashina3.2 mini thinking、思考レベルはmediumです。`SARASHINA_REASONING_EFFORT`でlow / medium / highを選べます。思考を含む出力上限は8,000トークン、temperatureは0.7です。`SARASHINA_MODEL=sarashina3-mini`に戻した場合はeffortを送信せず、出力上限512トークンで呼び出します。生成中はDiscordの入力中表示を出し、完成した回答を投稿します。
 
-会話本文はチャンネル・DMごとに直近6往復だけメモリに保持します。`CONVERSATION_TIMEOUT_MINUTES`分の無操作、リセットコマンド、プロセス再起動で消えます。成功してDiscordに投稿できた会話だけを追加します。OpenAI・Geminiの継続IDによる会話管理は従来どおりです。
+会話本文と暗号化された思考データ（画面には表示しません）はチャンネル・DMごとに直近6往復だけメモリに保持します。`CONVERSATION_TIMEOUT_MINUTES`分の無操作、リセットコマンド、プロセス再起動で消えます。成功してDiscordに投稿できた会話だけを追加します。OpenAI・Geminiの継続IDによる会話管理は従来どおりです。
 
 画像には新ぐもっぴーを使うよう案内します。Sarashinaには検索ツールを送信せず、`WEB_SEARCH_ENABLED`が有効でも検索しません。最新情報を確認できない旨をシステム指示に含めます。
 
-公開ベータの制限に合わせ、このプロセス全体で直近60秒に最大6回だけAPIを呼びます。上限では残りの待ち時間を案内するので、待ってからもう一度話しかけてください。APIが429を返した場合は60秒間呼び出しを休止します。自動再試行は行わず、1回の通信は最大60秒でタイムアウトします。同じ契約で別のプロセスも動かす場合、その利用分はローカルの回数管理には含まれません。
+公開ベータの制限に合わせ、このプロセス全体で直近60秒に最大30回だけAPIを呼びます。上限では残りの待ち時間を案内するので、待ってからもう一度話しかけてください。APIが429を返した場合は60秒間呼び出しを休止します。自動再試行は行わず、思考モデルでは1回の通信は最大120秒、それ以外は60秒でタイムアウトします。同じ契約で別のプロセスも動かす場合、その利用分はローカルの回数管理には含まれません。
+
+既存の`.env`に旧モデル名がある場合は、上記の`SARASHINA_MODEL`と`SARASHINA_REASONING_EFFORT`に書き換えてから再起動してください。コード更新だけでは既存の設定は変わりません。
 
 公式仕様: https://docs.sarashina.ai/api-reference/chat-completions

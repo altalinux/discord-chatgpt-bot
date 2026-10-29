@@ -24,7 +24,10 @@ export function loadConfig(env = process.env) {
     discordToken: env.DISCORD_TOKEN,
     aiProvider,
     sarashinaApiKey: env.SARASHINA_API_KEY,
-    sarashinaModel: env.SARASHINA_MODEL || "sarashina3-mini",
+    sarashinaModel: env.SARASHINA_MODEL || "sarashina3.2-mini-thinking",
+    sarashinaReasoningEffort: aiProvider === "sarashina"
+      ? parseSarashinaReasoningEffort(env.SARASHINA_REASONING_EFFORT)
+      : undefined,
     openaiApiKey: env.OPENAI_API_KEY,
     openaiModel: env.OPENAI_MODEL || "gpt-5.6-terra",
     openaiReasoningEffort:
@@ -79,4 +82,12 @@ export function parseBoolean(value, name) {
   if (["true", "1", "on", "yes"].includes(normalized)) return true;
   if (["false", "0", "off", "no"].includes(normalized)) return false;
   throw new Error(`${name} must be a boolean value.`);
+}
+
+function parseSarashinaReasoningEffort(value) {
+  const effort = (value?.trim() || "medium").toLowerCase();
+  if (!["low", "medium", "high"].includes(effort)) {
+    throw new Error("SARASHINA_REASONING_EFFORT must be low, medium, or high.");
+  }
+  return effort;
 }
