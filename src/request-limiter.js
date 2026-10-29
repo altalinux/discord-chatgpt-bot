@@ -19,7 +19,7 @@ export class RequestLimiter {
     this.sentAt = this.sentAt.filter((time) => now - time < 60_000);
     const availableAt = Math.max(
       this.blockedUntil,
-      this.sentAt.length >= 6 ? this.sentAt[0] + 60_000 : 0,
+      this.sentAt.length >= 30 ? this.sentAt[0] + 60_000 : 0,
     );
     if (availableAt > now) throw new RateLimitError(Math.ceil((availableAt - now) / 1000));
     this.sentAt.push(now);

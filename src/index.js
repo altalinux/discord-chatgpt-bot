@@ -104,7 +104,7 @@ discord.on("messageCreate", async (message) => {
         await message.reply(chunk);
       }
       if (aiProvider.name === "sarashina") {
-        conversationManager.appendExchange(conversationKey, message.author.username, prompt, response.text);
+        conversationManager.appendExchange(conversationKey, message.author.username, prompt, response.text, response.reasoning);
       }
     } catch (error) {
       if (aiProvider.name === "sarashina") {

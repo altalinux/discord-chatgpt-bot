@@ -13,10 +13,11 @@ test("Sarashina configuration requires only its own key and disables SDK retries
   assert.throws(() => loadConfig({ DISCORD_TOKEN: "test", AI_PROVIDER: "sarashina" }), /SARASHINA_API_KEY/);
   const config = loadConfig({ DISCORD_TOKEN: "test", AI_PROVIDER: "sarashina", SARASHINA_API_KEY: "test" });
   const provider = createAiProvider(config);
-  assert.equal(provider.model, "sarashina3-mini");
+  assert.equal(provider.model, "sarashina3.2-mini-thinking");
+  assert.equal(provider.reasoningEffort, "medium");
   assert.equal(provider.client.baseURL, "https://api.sarashina.ai/v1");
   assert.equal(provider.client.maxRetries, 0);
-  assert.equal(provider.client.timeout, 60_000);
+  assert.equal(provider.client.timeout, 120_000);
 });
 
 test("Sarashina sends text history with supported fields only and reads the answer", async () => {
@@ -55,7 +56,7 @@ test("history keeps six exchanges, isolates channels, expires and resets", () =>
   assert.deepEqual(manager.getHistory("channel"), []);
 });
 
-test("shared limiter prevents the seventh API call and permits calls after 60 seconds", async () => {
+test("shared limiter prevents the thirty-first API call and permits calls after 60 seconds", async () => {
   let now = 0;
   let calls = 0;
   const provider = new SarashinaProvider({ limiter: new RequestLimiter({ now: () => now }), client: {
@@ -64,13 +65,13 @@ test("shared limiter prevents the seventh API call and permits calls after 60 se
       return { choices: [{ message: { content: "hello" } }] };
     } } },
   } });
-  await Promise.all(Array.from({ length: 6 }, () => provider.generate(input)));
+  await Promise.all(Array.from({ length: 30 }, () => provider.generate(input)));
   now = 10_000;
   await assert.rejects(provider.generate(input), (error) => error instanceof RateLimitError && error.waitSeconds === 50);
-  assert.equal(calls, 6);
+  assert.equal(calls, 30);
   now = 60_000;
   await provider.generate(input);
-  assert.equal(calls, 7);
+  assert.equal(calls, 31);
 });
 
 test("upstream 429 blocks subsequent calls without retrying; empty answers fail", async () => {
@@ -88,4 +89,57 @@ test("upstream 429 blocks subsequent calls without retrying; empty answers fail"
   assert.equal(calls, 1);
   now = 60_000;
   await assert.rejects(provider.generate(input), /empty answer/);
+});
+
+test("thinking requests use medium effort and preserve encrypted reasoning across turns", async () => {
+  const requests = [];
+  const encryptedReasoning = "Y2lwaGVydGV4dC4uLg==";
+  const provider = new SarashinaProvider({
+    client: { chat: { completions: { create: async (request) => {
+      requests.push(request);
+      return { choices: [{ message: { role: "assistant", content: " やっほー！ ", reasoning: encryptedReasoning } }] };
+    } } } },
+  });
+  const manager = new ChannelConversationManager({ timeoutMs: 60_000 });
+  const response = await provider.generate(input);
+  assert.equal(response.text, "やっほー！");
+  assert.equal(response.reasoning, encryptedReasoning);
+  manager.appendExchange("channel", input.username, input.prompt, response.text, response.reasoning);
+  await provider.generate({ ...input, prompt: "元気？", history: manager.getHistory("channel") });
+  assert.equal(requests[0].model, "sarashina3.2-mini-thinking");
+  assert.equal(requests[0].reasoning_effort, "medium");
+  assert.equal(requests[0].max_completion_tokens, 8000);
+  assert.equal(requests[1].messages[2].reasoning, encryptedReasoning);
+  assert.equal(requests[1].messages[2].content, response.text);
+  manager.reset("channel");
+  assert.deepEqual(manager.getHistory("channel"), []);
+});
+
+test("Sarashina effort is validated only when selected and supports explicit overrides", () => {
+  const env = { DISCORD_TOKEN: "test", AI_PROVIDER: "sarashina", SARASHINA_API_KEY: "test" };
+  for (const effort of ["low", "medium", "high"]) {
+    const config = loadConfig({ ...env, SARASHINA_REASONING_EFFORT: effort });
+    assert.equal(createAiProvider(config).reasoningEffort, effort);
+  }
+  assert.equal(loadConfig({ ...env, SARASHINA_REASONING_EFFORT: "" }).sarashinaReasoningEffort, "medium");
+  assert.throws(() => loadConfig({ ...env, SARASHINA_REASONING_EFFORT: "max" }), /SARASHINA_REASONING_EFFORT/);
+  assert.doesNotThrow(() => loadConfig({
+    DISCORD_TOKEN: "test", AI_PROVIDER: "openai", OPENAI_API_KEY: "test", SARASHINA_REASONING_EFFORT: "max",
+  }));
+});
+
+test("selecting the non-thinking model omits effort despite the new medium default", async () => {
+  const config = loadConfig({
+    DISCORD_TOKEN: "test", AI_PROVIDER: "sarashina", SARASHINA_API_KEY: "test", SARASHINA_MODEL: "sarashina3-mini",
+  });
+  const provider = createAiProvider(config);
+  let request;
+  provider.client = { chat: { completions: { create: async (value) => {
+    request = value;
+    return { choices: [{ message: { content: "hello" } }] };
+  } } } };
+  await provider.generate(input);
+  assert.equal(request.model, "sarashina3-mini");
+  assert.equal(request.max_completion_tokens, 512);
+  assert.ok(!("reasoning_effort" in request));
 });

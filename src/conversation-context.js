@@ -31,10 +31,10 @@ export class ChannelConversationManager {
     return (this.getConversation(conversationKey)?.history ?? []).map((message) => ({ ...message }));
   }
 
-  appendExchange(conversationKey, username, prompt, text) {
+  appendExchange(conversationKey, username, prompt, text, reasoning) {
     const history = [...this.getHistory(conversationKey),
       { role: "user", content: `${username}: ${prompt}` },
-      { role: "assistant", content: text },
+      { role: "assistant", content: text, ...(reasoning && { reasoning }) },
     ].slice(-12);
     this.conversations.set(conversationKey, { history, lastUsedAt: this.now() });
   }

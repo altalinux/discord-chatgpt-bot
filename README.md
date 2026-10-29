@@ -256,17 +256,20 @@ Create a key in the Sarashina console, set these values in `.env`, and restart:
 ```dotenv
 AI_PROVIDER=sarashina
 SARASHINA_API_KEY=your_sarashina_api_key
-SARASHINA_MODEL=sarashina3-mini
+SARASHINA_MODEL=sarashina3.2-mini-thinking
+SARASHINA_REASONING_EFFORT=medium
 BOT_SYSTEM_PROMPT=You are Gumoppi. Chat warmly in Japanese.
 CONVERSATION_TIMEOUT_MINUTES=60
 ```
 
-Sarashina uses Chat Completions with a 512-token output limit and temperature 0.7. It is instructed to normally answer in 1–3 Japanese sentences. Discord shows a typing indicator while generating; responses are not streamed.
+Sarashina uses Chat Completions. The default model is `sarashina3.2-mini-thinking` with `reasoning_effort: "medium"`. Set `SARASHINA_REASONING_EFFORT` to low, medium, or high to change it. The output budget is 8,000 tokens including thinking, with temperature 0.7. Selecting the older `sarashina3-mini` omits effort and keeps its 512-token limit. It is instructed to normally answer in 1–3 Japanese sentences. Discord shows a typing indicator while generating; responses are not streamed.
 
-The last six successful exchanges are held in memory per channel/DM and sent with each request. History is saved after posting the answer and cleared on inactivity timeout, reset commands, or restart. OpenAI and Gemini retain their existing continuation-ID behavior.
+The last six successful exchanges, including encrypted reasoning data (never displayed in Discord), are held in memory per channel/DM and sent with each request. History is saved after posting the answer and cleared on inactivity timeout, reset commands, or restart. OpenAI and Gemini retain their existing continuation-ID behavior.
 
 Images receive a message directing users to the new Gumoppi. Web search is disabled for Sarashina even when `WEB_SEARCH_ENABLED=true`; its instructions explicitly state that it cannot verify current information.
 
-A process-wide limiter allows six calls per rolling 60 seconds. On reaching the limit, the bot asks users to try again after the displayed wait time. An upstream 429 pauses calls for 60 seconds. There are no automatic retries, and requests time out after 60 seconds. Usage by other processes sharing the same account is not tracked by this local limiter.
+A process-wide limiter allows 30 calls per rolling 60 seconds. On reaching the limit, the bot asks users to try again after the displayed wait time. An upstream 429 pauses calls for 60 seconds. There are no automatic retries, and thinking requests time out after 120 seconds (60 seconds for non-thinking models). Usage by other processes sharing the same account is not tracked by this local limiter.
+
+When upgrading an existing installation, update `SARASHINA_MODEL` and `SARASHINA_REASONING_EFFORT` in your local `.env` as shown above, then restart. Updating the code does not override existing environment values.
 
 API reference: https://docs.sarashina.ai/api-reference/chat-completions

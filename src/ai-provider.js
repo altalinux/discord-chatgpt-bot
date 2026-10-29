@@ -19,7 +19,11 @@ export class SearchLimitError extends Error {
 
 export function createAiProvider(config) {
   if (config.aiProvider === "sarashina") {
-    return new SarashinaProvider({ apiKey: config.sarashinaApiKey, model: config.sarashinaModel });
+    return new SarashinaProvider({
+      apiKey: config.sarashinaApiKey,
+      model: config.sarashinaModel,
+      reasoningEffort: config.sarashinaReasoningEffort,
+    });
   }
   if (config.aiProvider === "gemini") {
     return new GeminiProvider({
@@ -195,16 +199,18 @@ function utf8ByteOffsetToStringIndex(text, byteOffset) {
 
 
 export class SarashinaProvider {
-  constructor({ apiKey, model, client, limiter = new RequestLimiter() }) {
+  constructor({ apiKey, model = "sarashina3.2-mini-thinking", reasoningEffort = "medium", client, limiter = new RequestLimiter() }) {
     this.name = "sarashina";
     this.model = model;
+    this.thinking = model === "sarashina3.2-mini-thinking";
+    this.reasoningEffort = reasoningEffort;
     this.supportedImageContentTypes = new Set();
     this.limiter = limiter;
     this.client = client || new OpenAI({
       apiKey,
       baseURL: "https://api.sarashina.ai/v1",
       maxRetries: 0,
-      timeout: 60_000,
+      timeout: this.thinking ? 120_000 : 60_000,
     });
   }
 
@@ -218,12 +224,15 @@ export class SarashinaProvider {
           ...history,
           { role: "user", content: `${username}: ${prompt}` },
         ],
-        max_completion_tokens: 512,
+        // Thinking tokens share the output budget; leave room for the final answer.
+        max_completion_tokens: this.thinking ? 8000 : 512,
+        ...(this.thinking && { reasoning_effort: this.reasoningEffort }),
         temperature: 0.7,
       });
-      const text = response.choices?.[0]?.message?.content?.trim();
+      const message = response.choices?.[0]?.message;
+      const text = message?.content?.trim();
       if (!text) throw new Error("Sarashina returned an empty answer.");
-      return { text };
+      return { text, ...(message.reasoning && { reasoning: message.reasoning }) };
     } catch (error) {
       if (error?.status === 429) this.limiter.block();
       throw error;
